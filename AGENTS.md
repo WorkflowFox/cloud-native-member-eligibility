@@ -17,7 +17,7 @@ requirements, business rules, UX, API contract, and acceptance criteria.
 ## Repository layout
 
 ```
-/backend      Spring Boot (Java 17) API — added in Stage 4, currently empty
+/backend      Spring Boot (Java 17) API — Stage 4 implemented, in-memory repo
 /docs         Supporting documentation (spec.md, future design/deployment docs)
 /frontend     Angular application (Stage 2: complete, mock-backed)
 AGENTS.md     This file
@@ -33,7 +33,7 @@ stage or introduce a later stage's technology early.
 1. Specification — done.
 2. Angular frontend with mock service — done (`/frontend`).
 3. OpenAPI contract — done (`/openapi.yaml`).
-4. Spring Boot backend (in-memory/embedded repo acceptable initially) — next.
+4. Spring Boot backend (in-memory/embedded repo acceptable initially) — done (`/backend`).
 5. Frontend/backend integration (swap the mock for HTTP via DI, no component redesign).
 6. PostgreSQL persistence.
 7. Deployment design (AWS topology — proposal only, needs approval before provisioning).
@@ -81,8 +81,21 @@ npm test          # ng test — vitest-based unit tests
 
 ### Backend (`/backend`)
 
-Not yet implemented (Stage 4). When it lands, document its build/run/test
-commands here.
+```bash
+cd backend
+mvn test          # run the automated test suite
+mvn spring-boot:run   # run the API locally on :8080
+mvn package        # build the executable jar
+```
+
+Implements Stage 4: Java 17 (compiled/run here under a Java 21 JDK) /
+Spring Boot 3, with an in-memory repository implementation behind
+`MemberRepository` / `PlanRepository` / `CoverageRepository` interfaces
+(`repository/inmemory`), seeded with the deterministic synthetic data in
+spec §8.3. These interfaces are the seam Stage 6 will implement with
+Spring Data JPA / PostgreSQL, without changing `EligibilityController` or
+`EligibilityServiceImpl`. Interactive API docs are served at
+`/swagger-ui.html` (springdoc-openapi) once the app is running.
 
 ## Commit and PR expectations
 
