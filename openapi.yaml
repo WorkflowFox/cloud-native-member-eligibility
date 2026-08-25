@@ -1,0 +1,215 @@
+openapi: 3.0.3
+info:
+  title: Cloud-Native Member Eligibility API
+  description: >
+    Read-only eligibility inquiry API for the Cloud-Native Member Eligibility
+    showcase. Determines whether a synthetic health-plan member has active
+    coverage on a requested date. See docs/spec.md for the full product and
+    technical specification this contract implements (§12).
+  version: 1.1.0
+servers:
+  - url: http://localhost:8080
+    description: Local development
+
+# Authentication is deliberately excluded from this synthetic public showcase
+# (spec §13, §19). Declared explicitly so it reads as an intentional choice.
+security: []
+
+tags:
+  - name: Eligibility
+    description: Read-only member eligibility inquiries
+  - name: Operations
+    description: Deployment health checks
+
+paths:
+  /api/v1/eligibility:
+    get:
+      tags: [Eligibility]
+      operationId: checkEligibility
+      summary: Check member eligibility on a given date
+      description: >
+        Evaluates coverage for the supplied member and date. All four
+        business outcomes (ELIGIBLE, NOT_YET_ELIGIBLE, INELIGIBLE,
+        MEMBER_NOT_FOUND) are returned with HTTP 200 — MEMBER_NOT_FOUND is a
+        normal domain outcome, not a 404.
+      parameters:
+        - name: memberId
+          in: query
+          required: true
+          description: Exact synthetic member identifier. Blank is invalid.
+          schema:
+            type: string
+            minLength: 1
+          example: M-1001
+        - name: checkDate
+          in: query
+          required: true
+          description: ISO 8601 calendar date to evaluate coverage on.
+          schema:
+            type: string
+            format: date
+          example: "2026-08-22"
+      responses:
+        "200":
+          description: Eligibility decision. Returned for all four business outcomes.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EligibilityResult"
+              examples:
+                eligible:
+                  summary: ELIGIBLE
+                  value:
+                    memberId: M-1001
+                    memberName: Jordan Testcase
+                    planName: Acme Health Plan
+                    coverageEffectiveDate: "2025-01-01"
+                    coverageTerminationDate: null
+                    checkCoverageOnDate: "2026-08-22"
+                    eligibilityStatus: ELIGIBLE
+                    eligibilityReason: Coverage is active on 2026-08-22.
+                notYetEligible:
+                  summary: NOT_YET_ELIGIBLE
+                  value:
+                    memberId: M-1002
+                    memberName: Riley Sampleton
+                    planName: Northwind Choice PPO
+                    coverageEffectiveDate: "2027-02-01"
+                    coverageTerminationDate: null
+                    checkCoverageOnDate: "2026-08-22"
+                    eligibilityStatus: NOT_YET_ELIGIBLE
+                    eligibilityReason: Coverage does not begin until 2027-02-01, which is after 2026-08-22.
+                ineligible:
+                  summary: INELIGIBLE
+                  value:
+                    memberId: M-1003
+                    memberName: Avery Placeholder
+                    planName: Beacon Standard HMO
+                    coverageEffectiveDate: "2023-03-01"
+                    coverageTerminationDate: "2025-12-31"
+                    checkCoverageOnDate: "2026-08-22"
+                    eligibilityStatus: INELIGIBLE
+                    eligibilityReason: Coverage ended on 2025-12-31, which is before 2026-08-22.
+                memberNotFound:
+                  summary: MEMBER_NOT_FOUND
+                  value:
+                    memberId: M-9999
+                    memberName: null
+                    planName: null
+                    coverageEffectiveDate: null
+                    coverageTerminationDate: null
+                    checkCoverageOnDate: "2026-08-22"
+                    eligibilityStatus: MEMBER_NOT_FOUND
+                    eligibilityReason: No member matches ID M-9999. Confirm the member ID and check again.
+        "422":
+          description: Missing, blank, or malformed `memberId`/`checkDate`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                detail: memberId must not be blank and checkDate must be a valid ISO date.
+        "500":
+          description: Unexpected technical failure. Diagnostic details are logged server-side only.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                detail: An unexpected error occurred. Please try again.
+
+  /health:
+    get:
+      tags: [Operations]
+      operationId: getHealth
+      summary: Liveness check
+      description: Simple liveness signal, independent of database availability.
+      responses:
+        "200":
+          description: Service process is running.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+              example:
+                status: UP
+
+components:
+  schemas:
+    EligibilityStatus:
+      type: string
+      description: One of the four supported business outcomes.
+      enum:
+        - ELIGIBLE
+        - NOT_YET_ELIGIBLE
+        - INELIGIBLE
+        - MEMBER_NOT_FOUND
+
+    EligibilityResult:
+      type: object
+      description: >
+        Eligibility decision. For MEMBER_NOT_FOUND, memberName, planName,
+        coverageEffectiveDate, and coverageTerminationDate are null.
+      required:
+        - memberId
+        - memberName
+        - planName
+        - coverageEffectiveDate
+        - coverageTerminationDate
+        - checkCoverageOnDate
+        - eligibilityStatus
+        - eligibilityReason
+      properties:
+        memberId:
+          type: string
+          description: Echoes the submitted member ID.
+          example: M-1001
+        memberName:
+          type: string
+          nullable: true
+          example: Jordan Testcase
+        planName:
+          type: string
+          nullable: true
+          example: Acme Health Plan
+        coverageEffectiveDate:
+          type: string
+          format: date
+          nullable: true
+          example: "2025-01-01"
+        coverageTerminationDate:
+          type: string
+          format: date
+          nullable: true
+          description: Null means coverage has no recorded end date.
+          example: null
+        checkCoverageOnDate:
+          type: string
+          format: date
+          description: The date evaluated, echoed back from the request.
+          example: "2026-08-22"
+        eligibilityStatus:
+          $ref: "#/components/schemas/EligibilityStatus"
+        eligibilityReason:
+          type: string
+          description: Plain-language reason suitable for direct display.
+          example: Coverage is active on 2026-08-22.
+
+    ErrorResponse:
+      type: object
+      description: Stable public error shape. Never contains stack traces, SQL, file paths, or other internal detail.
+      required:
+        - detail
+      properties:
+        detail:
+          type: string
+          example: An unexpected error occurred. Please try again.
+
+    HealthStatus:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          example: UP
