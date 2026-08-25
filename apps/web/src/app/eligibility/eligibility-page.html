@@ -1,0 +1,207 @@
+<div class="page">
+
+  @if (mockService) {
+    <div class="demo-bar">
+      <span class="demo-bar__label">Prototype controls</span>
+      <div class="demo-bar__chips">
+        @for (chip of demoStates; track chip.label) {
+          <button type="button" class="chip" (click)="chip.go()">{{ chip.label }}</button>
+        }
+      </div>
+      <label class="demo-bar__toggle">
+        <input type="checkbox" [checked]="forceError()" (change)="onToggleForceError($event)" />
+        Simulate service failure
+      </label>
+    </div>
+  }
+
+  <header class="app-header">
+    <div class="app-header__inner">
+      <div class="app-header__mark" aria-hidden="true"></div>
+      <h1 class="app-header__title">Member Eligibility</h1>
+      <span class="app-header__subtitle">Coverage inquiry &middot; Read-only</span>
+      <span class="app-header__role">Service Representative</span>
+    </div>
+  </header>
+
+  <main class="main">
+    <div class="main__inner">
+
+      <section class="card card--form">
+        <h2 class="card__title">Eligibility inquiry</h2>
+        <p class="card__subtitle">
+          Enter the exact member ID and the date coverage should be checked on. Results are read-only and use
+          synthetic demonstration data.
+        </p>
+
+        @if (hasFieldErrors()) {
+          <div role="alert" class="alert">
+            <div class="alert__icon" aria-hidden="true">!</div>
+            <div>
+              <p class="alert__title">Check the inquiry details</p>
+              <p class="alert__text">{{ summaryText() }}</p>
+            </div>
+          </div>
+        }
+
+        <form [formGroup]="form" (ngSubmit)="onSubmit()" novalidate class="form-grid">
+          <div class="field">
+            <label for="memberId" class="field__label">Member ID</label>
+            <input
+              id="memberId"
+              formControlName="memberId"
+              type="text"
+              autocomplete="off"
+              placeholder="M-1001"
+              class="field__input field__input--mono"
+              [attr.aria-invalid]="idInvalid()"
+              aria-describedby="memberId-help"
+            />
+            <p id="memberId-help" class="field__help">{{ idHelp() }}</p>
+          </div>
+
+          <div class="field">
+            <label for="checkDate" class="field__label">Check Coverage On</label>
+            <input
+              id="checkDate"
+              formControlName="checkDate"
+              type="date"
+              class="field__input"
+              [attr.aria-invalid]="dateInvalid()"
+              aria-describedby="checkDate-help"
+            />
+            <p id="checkDate-help" class="field__help">{{ dateHelp() }}</p>
+          </div>
+
+          <div class="field field--submit">
+            <button type="submit" class="btn btn--primary" [disabled]="loading()">
+              @if (loading()) {
+                <span class="spinner" aria-hidden="true"></span>
+              }
+              {{ submitLabel() }}
+            </button>
+          </div>
+        </form>
+      </section>
+
+      <div role="status" aria-live="polite" class="result-stack">
+
+        @if (loading()) {
+          <div class="card card--loading">
+            <span class="spinner spinner--dark" aria-hidden="true"></span>
+            <p class="loading-text">Checking eligibility for {{ pendingId() }} on {{ pendingDate() }}&hellip;</p>
+          </div>
+        }
+
+        @if (showError()) {
+          <div class="card card--outcome">
+            <div class="outcome-bar outcome-bar--warn"></div>
+            <div class="outcome-body">
+              <div class="outcome-head">
+                <div class="outcome-icon outcome-icon--warn" aria-hidden="true">!</div>
+                <div>
+                  <h3 class="outcome-title">Service unavailable</h3>
+                  <p class="outcome-desc">
+                    The eligibility service is temporarily unavailable. Please try again. Your entered values have
+                    been kept.
+                  </p>
+                </div>
+              </div>
+              <div class="outcome-actions">
+                <button type="button" class="btn btn--primary" (click)="onRetry()">Try Again</button>
+                <button type="button" class="btn btn--secondary" (click)="onReset()">Start Another Inquiry</button>
+              </div>
+            </div>
+          </div>
+        }
+
+        @if (showResult() && result(); as r) {
+          <div class="card card--outcome">
+
+            @switch (r.eligibilityStatus) {
+              @case ('ELIGIBLE') {
+                <div class="outcome-bar outcome-bar--success"></div>
+                <div class="outcome-summary">
+                  <div class="outcome-status">
+                    <div class="outcome-icon outcome-icon--success" aria-hidden="true"><span class="glyph-check"></span></div>
+                    <h3 class="outcome-title outcome-title--lg">Eligible</h3>
+                  </div>
+                  <span class="badge badge--success">ELIGIBLE</span>
+                  <p class="outcome-reason">{{ r.eligibilityReason }}</p>
+                </div>
+              }
+              @case ('NOT_YET_ELIGIBLE') {
+                <div class="outcome-bar outcome-bar--info"></div>
+                <div class="outcome-summary">
+                  <div class="outcome-status">
+                    <div class="outcome-icon outcome-icon--info" aria-hidden="true"><span class="glyph-bar"></span></div>
+                    <h3 class="outcome-title outcome-title--lg">Not yet eligible</h3>
+                  </div>
+                  <span class="badge badge--info">NOT_YET_ELIGIBLE</span>
+                  <p class="outcome-reason">{{ r.eligibilityReason }}</p>
+                </div>
+              }
+              @case ('INELIGIBLE') {
+                <div class="outcome-bar outcome-bar--danger"></div>
+                <div class="outcome-summary">
+                  <div class="outcome-status">
+                    <div class="outcome-icon outcome-icon--danger" aria-hidden="true"><span class="glyph-dash"></span></div>
+                    <h3 class="outcome-title outcome-title--lg">Ineligible</h3>
+                  </div>
+                  <span class="badge badge--danger">INELIGIBLE</span>
+                  <p class="outcome-reason">{{ r.eligibilityReason }}</p>
+                </div>
+              }
+              @case ('MEMBER_NOT_FOUND') {
+                <div class="outcome-bar outcome-bar--neutral"></div>
+                <div class="outcome-summary">
+                  <div class="outcome-status">
+                    <div class="outcome-icon outcome-icon--neutral" aria-hidden="true">?</div>
+                    <h3 class="outcome-title outcome-title--lg">Member not found</h3>
+                  </div>
+                  <span class="badge badge--neutral">MEMBER_NOT_FOUND</span>
+                  <p class="outcome-reason">{{ r.eligibilityReason }}</p>
+                </div>
+              }
+            }
+
+            <div class="outcome-details">
+              <dl class="detail-grid">
+                @for (row of resultRows(); track row.label) {
+                  <div class="detail-item">
+                    <dt class="detail-label">{{ row.label }}</dt>
+                    <dd class="detail-value">{{ row.value }}</dd>
+                  </div>
+                }
+              </dl>
+              <div class="outcome-footer">
+                <button type="button" class="btn btn--dark" (click)="onReset()">Start Another Inquiry</button>
+                <p class="outcome-footnote">Read-only inquiry &middot; Synthetic demonstration data</p>
+              </div>
+            </div>
+
+          </div>
+        }
+
+        @if (showEmpty()) {
+          <div class="empty-state">
+            <p class="empty-state__title">No inquiry yet</p>
+            <p class="empty-state__desc">
+              Results appear here after you check eligibility. Demonstration IDs: M-1001, M-1002, M-1003 and the
+              intentionally absent M-9999.
+            </p>
+          </div>
+        }
+
+      </div>
+    </div>
+  </main>
+
+  <footer class="app-footer">
+    <p class="app-footer__text">
+      Cloud-Native Member Eligibility &middot; MVP v1.1 &middot; All members, plans, and identifiers shown are
+      fictional and synthetic.
+    </p>
+  </footer>
+
+</div>
